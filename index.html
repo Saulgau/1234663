@@ -2,7 +2,7 @@
 <html lang="de">
 <head>
     <meta charset="UTF-8">
-    <title>Bild-zu-Audio Konverter</title>
+    <title>Bild-zu-Audio Konverter (Demo)</title>
     <style>
         :root {
             --bg-primary: #1a1a1a;
@@ -48,39 +48,24 @@
             -webkit-text-fill-color: transparent;
         }
 
-        .upload-area {
-            border: 2px dashed var(--accent);
-            border-radius: 1rem;
-            padding: 2rem;
-            text-align: center;
-            margin-bottom: 2rem;
-            transition: all 0.3s ease;
-            cursor: pointer;
-        }
-
-        .upload-area:hover {
-            border-color: var(--accent-hover);
-            background: rgba(118, 74, 188, 0.1);
-        }
-
-        canvas {
-            max-width: 100%;
-            height: auto;
-            display: none;
-            margin: 1rem 0;
-            background: var(--bg-primary);
-            border-radius: 0.5rem;
-        }
-
-        .preview-container {
+        .image-container {
             margin: 2rem 0;
             text-align: center;
         }
 
-        #previewImage {
+        .test-image {
+            width: 200px;
+            height: 200px;
+            background: linear-gradient(45deg, #ff0000, #00ff00, #0000ff);
+            margin: 0 auto;
+            border-radius: 0.5rem;
+        }
+
+        canvas {
+            display: block;
+            margin: 1rem auto;
             max-width: 100%;
-            max-height: 300px;
-            display: none;
+            background: var(--bg-primary);
             border-radius: 0.5rem;
         }
 
@@ -116,12 +101,10 @@
 
         .visualizer {
             width: 100%;
-            height: 150px;
+            height: 100px;
             background: var(--bg-primary);
             margin: 1rem 0;
             border-radius: 0.5rem;
-            position: relative;
-            overflow: hidden;
         }
 
         .status {
@@ -135,25 +118,19 @@
     <div class="container">
         <h1>Bild-zu-Audio Konverter</h1>
         
-        <div class="upload-area" id="dropZone">
-            <p>Bild hier ablegen oder klicken zum Auswählen</p>
-            <input type="file" id="fileInput" accept="image/*" style="display: none">
-        </div>
-
-        <div class="preview-container">
-            <img id="previewImage" alt="Bildvorschau">
-            <canvas id="imageCanvas"></canvas>
+        <div class="image-container">
+            <div class="test-image" id="testImage"></div>
             <canvas id="audioVisualizer"></canvas>
         </div>
 
         <div class="controls">
-            <button id="convertBtn" disabled>Konvertieren</button>
+            <button id="convertBtn">In Audio umwandeln</button>
             <button id="playBtn" disabled>Abspielen</button>
             <button id="stopBtn" disabled>Stoppen</button>
         </div>
 
         <div class="status">
-            <p id="statusText">Bereit zum Upload</p>
+            <p id="statusText">Klicken Sie auf 'In Audio umwandeln' um zu starten</p>
         </div>
     </div>
 
@@ -162,11 +139,7 @@
         let oscillator;
         let gainNode;
         
-        const dropZone = document.getElementById('dropZone');
-        const fileInput = document.getElementById('fileInput');
-        const previewImage = document.getElementById('previewImage');
-        const imageCanvas = document.getElementById('imageCanvas');
-        const ctx = imageCanvas.getContext('2d');
+        const testImage = document.getElementById('testImage');
         const convertBtn = document.getElementById('convertBtn');
         const playBtn = document.getElementById('playBtn');
         const stopBtn = document.getElementById('stopBtn');
@@ -181,66 +154,24 @@
             alert('Web Audio API wird in diesem Browser nicht unterstützt!');
         }
 
-        dropZone.addEventListener('click', () => fileInput.click());
-        
-        dropZone.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            dropZone.style.borderColor = var(--accent-hover);
-        });
-
-        dropZone.addEventListener('dragleave', (e) => {
-            e.preventDefault();
-            dropZone.style.borderColor = var(--accent);
-        });
-
-        dropZone.addEventListener('drop', (e) => {
-            e.preventDefault();
-            const file = e.dataTransfer.files[0];
-            handleFile(file);
-        });
-
-        fileInput.addEventListener('change', (e) => {
-            const file = e.target.files[0];
-            handleFile(file);
-        });
-
-        function handleFile(file) {
-            if (file && file.type.startsWith('image/')) {
-                const reader = new FileReader();
-                reader.onload = (e) => {
-                    const img = new Image();
-                    img.onload = () => {
-                        previewImage.src = e.target.result;
-                        previewImage.style.display = 'block';
-                        
-                        // Canvas für die Bildverarbeitung vorbereiten
-                        imageCanvas.width = img.width;
-                        imageCanvas.height = img.height;
-                        ctx.drawImage(img, 0, 0);
-                        
-                        convertBtn.disabled = false;
-                        statusText.textContent = 'Bild geladen - bereit zur Konvertierung';
-                    };
-                    img.src = e.target.result;
-                };
-                reader.readAsDataURL(file);
-            }
-        }
+        // Canvas-Größe setzen
+        visualizer.width = 800;
+        visualizer.height = 100;
 
         convertBtn.addEventListener('click', () => {
-            const imageData = ctx.getImageData(0, 0, imageCanvas.width, imageCanvas.height);
-            const data = imageData.data;
-            
-            // Bildpixel in Frequenzen umwandeln
+            // Testbild in Frequenzen umwandeln
             const frequencies = [];
-            for (let i = 0; i < data.length; i += 4) {
-                const brightness = (data[i] + data[i + 1] + data[i + 2]) / 3;
-                frequencies.push(brightness + 220); // Frequenzbereich 220-475 Hz
+            for (let i = 0; i < 100; i++) {
+                // Erzeuge verschiedene Frequenzen basierend auf Position
+                frequencies.push(220 + (i * 2)); // Frequenzbereich 220-420 Hz
             }
             
             window.audioData = frequencies;
             playBtn.disabled = false;
             statusText.textContent = 'Konvertierung abgeschlossen - bereit zum Abspielen';
+            
+            // Visualisierung vorbereiten
+            visualizerCtx.clearRect(0, 0, visualizer.width, visualizer.height);
         });
 
         playBtn.addEventListener('click', () => {
@@ -260,6 +191,9 @@
                 if (index >= frequencies.length) {
                     clearInterval(intervalId);
                     oscillator.stop();
+                    playBtn.disabled = false;
+                    stopBtn.disabled = true;
+                    statusText.textContent = 'Wiedergabe beendet';
                     return;
                 }
                 
@@ -269,17 +203,17 @@
                 );
                 
                 // Visualisierung
-                visualizerCtx.fillStyle = `rgb(${frequencies[index]},
-                    ${frequencies[index]}, 255)`;
+                const hue = (frequencies[index] - 220) / 2;
+                visualizerCtx.fillStyle = `hsl(${hue}, 100%, 50%)`;
                 visualizerCtx.fillRect(
                     (index / frequencies.length) * visualizer.width,
                     0,
-                    1,
+                    visualizer.width / frequencies.length,
                     visualizer.height
                 );
                 
                 index++;
-            }, 10);
+            }, 50);
             
             oscillator.start();
             playBtn.disabled = true;
@@ -295,10 +229,6 @@
                 statusText.textContent = 'Audio gestoppt';
             }
         });
-
-        // Canvas-Größe für Visualizer
-        visualizer.width = 800;
-        visualizer.height = 150;
     </script>
 </body>
 </html>
