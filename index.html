@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <title>Bild-zu-Audio Sender</title>
+    <style>
+        :root {
+            --bg-primary: #1a1a1a;
+            --bg-secondary: #2d2d2d;
+            --text-primary: #ffffff;
+            --text-secondary: #b3b3b3;
+            --accent: #764abc;
+            --accent-hover: #8b5fcc;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 2rem;
+        }
+
+        .container {
+            max-width: 800px;
+            width: 100%;
+            background: var(--bg-secondary);
+            padding: 2rem;
+            border-radius: 1rem;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            margin-bottom: 2rem;
+            text-align: center;
+            background: linear-gradient(45deg, var(--accent), #a855f7);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .upload-area {
+            border: 2px dashed var(--accent);
+            border-radius: 1rem;
+            padding: 2rem;
+            text-align: center;
+            margin-bottom: 2rem;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .upload-area:hover {
+            border-color: var(--accent-hover);
+            background: rgba(118, 74, 188, 0.1);
+        }
+
+        .preview-container {
+            margin: 2rem 0;
+            display: flex;
+            justify-content: center;
+        }
+
+        #imagePreview {
+            max-width: 100%;
+            max-height: 300px;
+            border-radius: 0.5rem;
+            display: none;
+        }
+
+        .controls {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+        }
+
+        button {
+            background: var(--accent);
+            color: white;
+            border: none;
+            padding: 1rem 2rem;
+            border-radius: 0.5rem;
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            min-width: 150px;
+        }
+
+        button:hover {
+            background: var(--accent-hover);
+            transform: translateY(-2px);
+        }
+
+        button:disabled {
+            background: var(--text-secondary);
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .status {
+            margin-top: 2rem;
+            text-align: center;
+            color: var(--text-secondary);
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 6px;
+            background: var(--bg-primary);
+            border-radius: 3px;
+            margin-top: 1rem;
+            overflow: hidden;
+        }
+
+        .progress {
+            width: 0%;
+            height: 100%;
+            background: linear-gradient(90deg, var(--accent), #a855f7);
+            transition: width 0.3s ease;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+
+        .transmitting .progress {
+            animation: pulse 2s infinite;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Bild-zu-Audio Sender</h1>
+        
+        <div class="upload-area" id="dropZone">
+            <p>Bild hier ablegen oder klicken zum Auswählen</p>
+            <input type="file" id="fileInput" accept="image/*" style="display: none">
+        </div>
+
+        <div class="preview-container">
+            <img id="imagePreview" alt="Vorschau">
+        </div>
+
+        <div class="controls">
+            <button id="convertBtn" disabled>Konvertieren</button>
+            <button id="transmitBtn" disabled>Übertragen</button>
+        </div>
+
+        <div class="status">
+            <p id="statusText">Bereit zum Upload</p>
+            <div class="progress-bar">
+                <div class="progress" id="progressBar"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('fileInput');
+        const imagePreview = document.getElementById('imagePreview');
+        const convertBtn = document.getElementById('convertBtn');
+        const transmitBtn = document.getElementById('transmitBtn');
+        const statusText = document.getElementById('statusText');
+        const progressBar = document.getElementById('progressBar');
+
+        let audioContext;
+        let audioBuffer;
+
+        dropZone.addEventListener('click', () => fileInput.click());
+        
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.style.borderColor = var(--accent-hover);
+        });
+
+        dropZone.addEventListener('dragleave', (e) => {
+            e.preventDefault();
+            dropZone.style.borderColor = var(--accent);
+        });
+
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            const file = e.dataTransfer.files[0];
+            handleFile(file);
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            handleFile(file);
+        });
+
+        function handleFile(file) {
+            if (file && file.type.startsWith('image/')) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    imagePreview.src = e.target.result;
+                    imagePreview.style.display = 'block';
+                    convertBtn.disabled = false;
+                    statusText.textContent = 'Bild geladen - bereit zur Konvertierung';
+                };
+                reader.readAsDataURL(file);
+            }
+        }
+
+        convertBtn.addEventListener('click', async () => {
+            statusText.textContent = 'Konvertiere Bild zu Audio...';
+            progressBar.style.width = '50%';
+            
+            // Simuliere Konvertierung (hier würde die echte Implementierung kommen)
+            await new Promise(resolve => setTimeout(resolve, 1500));
+            
+            progressBar.style.width = '100%';
+            statusText.textContent = 'Konvertierung abgeschlossen';
+            transmitBtn.disabled = false;
+        });
+
+        transmitBtn.addEventListener('click', async () => {
+            statusText.textContent = 'Übertrage Audio...';
+            progressBar.classList.add('transmitting');
+            
+            // Simuliere Audioübertragung (hier würde die echte Implementierung kommen)
+            for (let i = 0; i <= 100; i += 10) {
+                await new Promise(resolve => setTimeout(resolve, 200));
+                progressBar.style.width = i + '%';
+            }
+            
+            statusText.textContent = 'Übertragung abgeschlossen';
+            progressBar.classList.remove('transmitting');
+        });
+    </script>
+</body>
+</html>
