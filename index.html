@@ -56,6 +56,7 @@
             margin-bottom: 2rem;
             transition: all 0.3s ease;
             cursor: pointer;
+            position: relative;
         }
 
         .upload-area:hover {
@@ -67,13 +68,25 @@
             margin: 2rem 0;
             display: flex;
             justify-content: center;
+            align-items: center;
+            min-height: 200px;
         }
 
-        #imagePreview {
+        .preview-container img {
             max-width: 100%;
             max-height: 300px;
             border-radius: 0.5rem;
-            display: none;
+        }
+
+        .placeholder-image {
+            width: 400px;
+            height: 300px;
+            background: var(--bg-primary);
+            border-radius: 0.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-secondary);
         }
 
         .controls {
@@ -95,7 +108,7 @@
             min-width: 150px;
         }
 
-        button:hover {
+        button:hover:not(:disabled) {
             background: var(--accent-hover);
             transform: translateY(-2px);
         }
@@ -103,7 +116,6 @@
         button:disabled {
             background: var(--text-secondary);
             cursor: not-allowed;
-            transform: none;
         }
 
         .status {
@@ -137,6 +149,13 @@
         .transmitting .progress {
             animation: pulse 2s infinite;
         }
+
+        #imageDisplay {
+            max-width: 100%;
+            max-height: 300px;
+            object-fit: contain;
+            display: none;
+        }
     </style>
 </head>
 <body>
@@ -149,7 +168,10 @@
         </div>
 
         <div class="preview-container">
-            <img id="imagePreview" alt="Vorschau">
+            <img id="imageDisplay" src="/api/placeholder/400/300" alt="Bildvorschau">
+            <div class="placeholder-image" id="placeholderImage">
+                Keine Bildvorschau verfügbar
+            </div>
         </div>
 
         <div class="controls">
@@ -168,7 +190,8 @@
     <script>
         const dropZone = document.getElementById('dropZone');
         const fileInput = document.getElementById('fileInput');
-        const imagePreview = document.getElementById('imagePreview');
+        const imageDisplay = document.getElementById('imageDisplay');
+        const placeholderImage = document.getElementById('placeholderImage');
         const convertBtn = document.getElementById('convertBtn');
         const transmitBtn = document.getElementById('transmitBtn');
         const statusText = document.getElementById('statusText');
@@ -204,8 +227,9 @@
             if (file && file.type.startsWith('image/')) {
                 const reader = new FileReader();
                 reader.onload = (e) => {
-                    imagePreview.src = e.target.result;
-                    imagePreview.style.display = 'block';
+                    imageDisplay.style.display = 'block';
+                    placeholderImage.style.display = 'none';
+                    imageDisplay.src = e.target.result;
                     convertBtn.disabled = false;
                     statusText.textContent = 'Bild geladen - bereit zur Konvertierung';
                 };
@@ -217,7 +241,7 @@
             statusText.textContent = 'Konvertiere Bild zu Audio...';
             progressBar.style.width = '50%';
             
-            // Simuliere Konvertierung (hier würde die echte Implementierung kommen)
+            // Simuliere Konvertierung
             await new Promise(resolve => setTimeout(resolve, 1500));
             
             progressBar.style.width = '100%';
@@ -229,7 +253,7 @@
             statusText.textContent = 'Übertrage Audio...';
             progressBar.classList.add('transmitting');
             
-            // Simuliere Audioübertragung (hier würde die echte Implementierung kommen)
+            // Simuliere Audioübertragung
             for (let i = 0; i <= 100; i += 10) {
                 await new Promise(resolve => setTimeout(resolve, 200));
                 progressBar.style.width = i + '%';
@@ -238,6 +262,10 @@
             statusText.textContent = 'Übertragung abgeschlossen';
             progressBar.classList.remove('transmitting');
         });
+
+        // Initial setup
+        imageDisplay.style.display = 'none';
+        placeholderImage.style.display = 'flex';
     </script>
 </body>
 </html>
