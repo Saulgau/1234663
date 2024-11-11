@@ -2,7 +2,7 @@
 <html lang="de">
 <head>
     <meta charset="UTF-8">
-    <title>Bild-zu-Audio Sender</title>
+    <title>Bild-zu-Audio Konverter</title>
     <style>
         :root {
             --bg-primary: #1a1a1a;
@@ -56,7 +56,6 @@
             margin-bottom: 2rem;
             transition: all 0.3s ease;
             cursor: pointer;
-            position: relative;
         }
 
         .upload-area:hover {
@@ -64,35 +63,32 @@
             background: rgba(118, 74, 188, 0.1);
         }
 
-        .preview-container {
-            margin: 2rem 0;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: 200px;
-        }
-
-        .preview-container img {
+        canvas {
             max-width: 100%;
-            max-height: 300px;
-            border-radius: 0.5rem;
-        }
-
-        .placeholder-image {
-            width: 400px;
-            height: 300px;
+            height: auto;
+            display: none;
+            margin: 1rem 0;
             background: var(--bg-primary);
             border-radius: 0.5rem;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: var(--text-secondary);
+        }
+
+        .preview-container {
+            margin: 2rem 0;
+            text-align: center;
+        }
+
+        #previewImage {
+            max-width: 100%;
+            max-height: 300px;
+            display: none;
+            border-radius: 0.5rem;
         }
 
         .controls {
             display: flex;
             gap: 1rem;
             justify-content: center;
+            flex-wrap: wrap;
         }
 
         button {
@@ -118,49 +114,26 @@
             cursor: not-allowed;
         }
 
+        .visualizer {
+            width: 100%;
+            height: 150px;
+            background: var(--bg-primary);
+            margin: 1rem 0;
+            border-radius: 0.5rem;
+            position: relative;
+            overflow: hidden;
+        }
+
         .status {
             margin-top: 2rem;
             text-align: center;
             color: var(--text-secondary);
         }
-
-        .progress-bar {
-            width: 100%;
-            height: 6px;
-            background: var(--bg-primary);
-            border-radius: 3px;
-            margin-top: 1rem;
-            overflow: hidden;
-        }
-
-        .progress {
-            width: 0%;
-            height: 100%;
-            background: linear-gradient(90deg, var(--accent), #a855f7);
-            transition: width 0.3s ease;
-        }
-
-        @keyframes pulse {
-            0% { transform: scale(1); }
-            50% { transform: scale(1.05); }
-            100% { transform: scale(1); }
-        }
-
-        .transmitting .progress {
-            animation: pulse 2s infinite;
-        }
-
-        #imageDisplay {
-            max-width: 100%;
-            max-height: 300px;
-            object-fit: contain;
-            display: none;
-        }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>Bild-zu-Audio Sender</h1>
+        <h1>Bild-zu-Audio Konverter</h1>
         
         <div class="upload-area" id="dropZone">
             <p>Bild hier ablegen oder klicken zum Auswählen</p>
@@ -168,37 +141,45 @@
         </div>
 
         <div class="preview-container">
-            <img id="imageDisplay" src="/api/placeholder/400/300" alt="Bildvorschau">
-            <div class="placeholder-image" id="placeholderImage">
-                Keine Bildvorschau verfügbar
-            </div>
+            <img id="previewImage" alt="Bildvorschau">
+            <canvas id="imageCanvas"></canvas>
+            <canvas id="audioVisualizer"></canvas>
         </div>
 
         <div class="controls">
             <button id="convertBtn" disabled>Konvertieren</button>
-            <button id="transmitBtn" disabled>Übertragen</button>
+            <button id="playBtn" disabled>Abspielen</button>
+            <button id="stopBtn" disabled>Stoppen</button>
         </div>
 
         <div class="status">
             <p id="statusText">Bereit zum Upload</p>
-            <div class="progress-bar">
-                <div class="progress" id="progressBar"></div>
-            </div>
         </div>
     </div>
 
     <script>
+        let audioContext;
+        let oscillator;
+        let gainNode;
+        
         const dropZone = document.getElementById('dropZone');
         const fileInput = document.getElementById('fileInput');
-        const imageDisplay = document.getElementById('imageDisplay');
-        const placeholderImage = document.getElementById('placeholderImage');
+        const previewImage = document.getElementById('previewImage');
+        const imageCanvas = document.getElementById('imageCanvas');
+        const ctx = imageCanvas.getContext('2d');
         const convertBtn = document.getElementById('convertBtn');
-        const transmitBtn = document.getElementById('transmitBtn');
+        const playBtn = document.getElementById('playBtn');
+        const stopBtn = document.getElementById('stopBtn');
         const statusText = document.getElementById('statusText');
-        const progressBar = document.getElementById('progressBar');
+        const visualizer = document.getElementById('audioVisualizer');
+        const visualizerCtx = visualizer.getContext('2d');
 
-        let audioContext;
-        let audioBuffer;
+        // Audio-Kontext erstellen
+        try {
+            audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        } catch (e) {
+            alert('Web Audio API wird in diesem Browser nicht unterstützt!');
+        }
 
         dropZone.addEventListener('click', () => fileInput.click());
         
@@ -227,45 +208,97 @@
             if (file && file.type.startsWith('image/')) {
                 const reader = new FileReader();
                 reader.onload = (e) => {
-                    imageDisplay.style.display = 'block';
-                    placeholderImage.style.display = 'none';
-                    imageDisplay.src = e.target.result;
-                    convertBtn.disabled = false;
-                    statusText.textContent = 'Bild geladen - bereit zur Konvertierung';
+                    const img = new Image();
+                    img.onload = () => {
+                        previewImage.src = e.target.result;
+                        previewImage.style.display = 'block';
+                        
+                        // Canvas für die Bildverarbeitung vorbereiten
+                        imageCanvas.width = img.width;
+                        imageCanvas.height = img.height;
+                        ctx.drawImage(img, 0, 0);
+                        
+                        convertBtn.disabled = false;
+                        statusText.textContent = 'Bild geladen - bereit zur Konvertierung';
+                    };
+                    img.src = e.target.result;
                 };
                 reader.readAsDataURL(file);
             }
         }
 
-        convertBtn.addEventListener('click', async () => {
-            statusText.textContent = 'Konvertiere Bild zu Audio...';
-            progressBar.style.width = '50%';
+        convertBtn.addEventListener('click', () => {
+            const imageData = ctx.getImageData(0, 0, imageCanvas.width, imageCanvas.height);
+            const data = imageData.data;
             
-            // Simuliere Konvertierung
-            await new Promise(resolve => setTimeout(resolve, 1500));
-            
-            progressBar.style.width = '100%';
-            statusText.textContent = 'Konvertierung abgeschlossen';
-            transmitBtn.disabled = false;
-        });
-
-        transmitBtn.addEventListener('click', async () => {
-            statusText.textContent = 'Übertrage Audio...';
-            progressBar.classList.add('transmitting');
-            
-            // Simuliere Audioübertragung
-            for (let i = 0; i <= 100; i += 10) {
-                await new Promise(resolve => setTimeout(resolve, 200));
-                progressBar.style.width = i + '%';
+            // Bildpixel in Frequenzen umwandeln
+            const frequencies = [];
+            for (let i = 0; i < data.length; i += 4) {
+                const brightness = (data[i] + data[i + 1] + data[i + 2]) / 3;
+                frequencies.push(brightness + 220); // Frequenzbereich 220-475 Hz
             }
             
-            statusText.textContent = 'Übertragung abgeschlossen';
-            progressBar.classList.remove('transmitting');
+            window.audioData = frequencies;
+            playBtn.disabled = false;
+            statusText.textContent = 'Konvertierung abgeschlossen - bereit zum Abspielen';
         });
 
-        // Initial setup
-        imageDisplay.style.display = 'none';
-        placeholderImage.style.display = 'flex';
+        playBtn.addEventListener('click', () => {
+            if (!window.audioData) return;
+            
+            oscillator = audioContext.createOscillator();
+            gainNode = audioContext.createGain();
+            
+            oscillator.connect(gainNode);
+            gainNode.connect(audioContext.destination);
+            
+            let index = 0;
+            const frequencies = window.audioData;
+            
+            // Frequenz-Update-Intervall
+            const intervalId = setInterval(() => {
+                if (index >= frequencies.length) {
+                    clearInterval(intervalId);
+                    oscillator.stop();
+                    return;
+                }
+                
+                oscillator.frequency.setValueAtTime(
+                    frequencies[index], 
+                    audioContext.currentTime
+                );
+                
+                // Visualisierung
+                visualizerCtx.fillStyle = `rgb(${frequencies[index]},
+                    ${frequencies[index]}, 255)`;
+                visualizerCtx.fillRect(
+                    (index / frequencies.length) * visualizer.width,
+                    0,
+                    1,
+                    visualizer.height
+                );
+                
+                index++;
+            }, 10);
+            
+            oscillator.start();
+            playBtn.disabled = true;
+            stopBtn.disabled = false;
+            statusText.textContent = 'Spiele Audio...';
+        });
+
+        stopBtn.addEventListener('click', () => {
+            if (oscillator) {
+                oscillator.stop();
+                playBtn.disabled = false;
+                stopBtn.disabled = true;
+                statusText.textContent = 'Audio gestoppt';
+            }
+        });
+
+        // Canvas-Größe für Visualizer
+        visualizer.width = 800;
+        visualizer.height = 150;
     </script>
 </body>
 </html>
